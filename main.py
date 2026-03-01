@@ -4,16 +4,18 @@ from alphagram.types import Message
 import asyncio
 from collections import defaultdict
 from DA_Koyeb.health import emit_positive_health
+import os
+import sys
 
-API_ID = 13691707
-API_HASH = '2a31b117896c5c7da27c74025aa602b8'
-BOT_TOKEN = '8614262779:AAG8XK-JL8aGrWSPNSdaAQ9u4km00Noury4'
+BOT_TOKEN = os.getenv("BOT_TOKEN", None)
 
-app = Client("DEX-DUP", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
-app_2 = Client("DEX-DUP-2", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+if not BOT_TOKEN:
+    print("'BOT_TOKEN' variable not found in the environment.")
+    sys.exit()
 
+app = Client("DEX-DUP", bot_token=BOT_TOKEN, use_default_api=True)
+app_2 = Client("DEX-DUP-2", bot_token=BOT_TOKEN, use_default_api=True)
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def get_media_info(msg: Message) -> tuple[str, int] | None:
     """Return (media_type, file_size) for grouping, or None if not media."""
@@ -42,11 +44,6 @@ async def _anext_or_none(agen):
 
 
 async def compare_streaming(client: Client, msg1: Message, msg2: Message) -> bool:
-    """
-    Stream both files chunk by chunk in parallel.
-    Returns True only if every chunk matches — bails on first mismatch,
-    so in the best case only one chunk is downloaded from each file.
-    """
     try:
         g1 = app.stream_media(msg1)
         g2 = app_2.stream_media(msg2)
@@ -54,8 +51,6 @@ async def compare_streaming(client: Client, msg1: Message, msg2: Message) -> boo
         chunk_num = 0
         while True:
             chunk_num += 1
-            # Fetch sequentially — concurrent stream_media calls fight over
-            # alphagram's internal session lock and deadlock each other.
             c1 = await _anext_or_none(g1)
             c2 = await _anext_or_none(g2)
 
@@ -78,7 +73,6 @@ async def compare_streaming(client: Client, msg1: Message, msg2: Message) -> boo
         return False
 
 
-# ── Bot command ───────────────────────────────────────────────────────────────
 
 @app.on_message(filters.command("clear"))
 async def clear_duplicate_handler(client: Client, m: Message):
@@ -94,7 +88,6 @@ async def clear_duplicate_handler(client: Client, m: Message):
 
     status_msg = await m.reply(f"Fetching messages {st}–{en}...")
 
-    # ── 1. Fetch all messages in range ────────────────────────────────────────
     mrange = list(range(st, en + 1))
     mlist: list[Message] = []
 
@@ -116,7 +109,6 @@ async def clear_duplicate_handler(client: Client, m: Message):
 
     await status_msg.edit(f"Fetched {len(mlist)} messages. Grouping by type + size...")
 
-    # ── 2. Group by (media_type, file_size) ───────────────────────────────────
     groups: dict[tuple[str, int], list[Message]] = defaultdict(list)
     for msg in mlist:
         info = get_media_info(msg)
@@ -135,7 +127,6 @@ async def clear_duplicate_handler(client: Client, m: Message):
         f"Found {total} file(s) across {len(candidates)} group(s) to stream-compare..."
     )
 
-    # ── 3. Stream-compare chunk by chunk within each group ────────────────────
     duplicates_to_delete: list[int] = []
 
     for (mtype, fsize), group in candidates.items():
@@ -153,7 +144,6 @@ async def clear_duplicate_handler(client: Client, m: Message):
             if not is_dup:
                 unique_msgs.append(msg)
 
-    # ── 4. Delete duplicates ──────────────────────────────────────────────────
     if not duplicates_to_delete:
         return await status_msg.edit("No byte-for-byte exact duplicates found.")
 
