@@ -1,6 +1,6 @@
-from pyrogram import Client, filters  # type: ignore
-from pyrogram.errors import FloodWait
-from pyrogram.types import Message
+from alphagram import Client, filters, idle  # type: ignore
+from alphagram.errors import FloodWait
+from alphagram.types import Message
 import asyncio
 from collections import defaultdict
 
@@ -9,6 +9,7 @@ API_HASH = '2a31b117896c5c7da27c74025aa602b8'
 BOT_TOKEN = '8614262779:AAG8XK-JL8aGrWSPNSdaAQ9u4km00Noury4'
 
 app = Client("DEX-DUP", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
+app_2 = Client("DEX-DUP-2", api_id=API_ID, api_hash=API_HASH, bot_token=BOT_TOKEN)
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -46,14 +47,14 @@ async def compare_streaming(client: Client, msg1: Message, msg2: Message) -> boo
     so in the best case only one chunk is downloaded from each file.
     """
     try:
-        g1 = client.stream_media(msg1)
-        g2 = client.stream_media(msg2)
+        g1 = app.stream_media(msg1)
+        g2 = app_2.stream_media(msg2)
 
         chunk_num = 0
         while True:
             chunk_num += 1
             # Fetch sequentially — concurrent stream_media calls fight over
-            # Pyrogram's internal session lock and deadlock each other.
+            # alphagram's internal session lock and deadlock each other.
             c1 = await _anext_or_none(g1)
             c2 = await _anext_or_none(g2)
 
@@ -174,4 +175,6 @@ async def clear_duplicate_handler(client: Client, m: Message):
 
 if __name__ == '__main__':
     print("Starting duplicate bot...")
-    app.run()
+    app.start() # type: ignore
+    app_2.start() # type: ignore
+    idle()
