@@ -3,6 +3,7 @@ from alphagram.errors import FloodWait
 from alphagram.types import Message
 import asyncio
 from collections import defaultdict
+from DA_Koyeb.health import emit_positive_health
 
 API_ID = 13691707
 API_HASH = '2a31b117896c5c7da27c74025aa602b8'
@@ -175,6 +176,7 @@ async def clear_duplicate_handler(client: Client, m: Message):
 
 if __name__ == '__main__':
     print("Starting duplicate bot...")
+    emit_positive_health()
     app.start() # type: ignore
     app_2.start() # type: ignore
     idle()
